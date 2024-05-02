@@ -1,32 +1,40 @@
-from aiohttp import web, ClientSession
+from flask import Flask, request, Response, jsonify
+from flask_cors import CORS, cross_origin
 import json
 import uuid
 import logging
-import tempfile
-import os
+import requests
 
-async def fetch(req):
+app = Flask(__name__)
+CORS(app)
+
+def fetch(req):
     if req.method == "OPTIONS":
-        return web.Response(body="", headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'}, status=204)
+        return Response(response="", headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'}, status=204)
 
-    body = await req.json()
-
+    body = req.json
     messages = body.get("messages", [])
     model_name = body.get("model", "GPT-4")
     stream = body.get("stream", False)
-
     last_user_content = None
     channelId = None
+
     for message in messages:
         role = message.get("role")
         content = message.get("content")
         if role == "user":
             last_user_content = content
-
             if "使用四到五个字直接返回这句话的简要主题，不要解释、不要标点、不要语气词、不要多余文本，不要加粗，如果没有主题，请直接返回“闲聊”" in content:
-                return web.Response(status=200)
+                return Response(status=200)
+        elif role == "system":
+            if content == "简要总结一下对话内容，用作后续的上下文提示 prompt，控制在 200 字以内":
+                return Response(status=200)
+            try:
+                uuid.UUID(content)
+                channelId = content
+            except ValueError:
+                pass
 
-        if role == "system":
             try:
                 uuid.UUID(content)
                 channelId = content
@@ -34,9 +42,9 @@ async def fetch(req):
                 pass
 
     if last_user_content is None:
-        return web.Response(status=400, text="No user message found")
+        return Response(status=400, text="No user message found")
 
-    auth_header = req.headers.get("Authorization")
+    auth_header = request.headers.get("Authorization")
     auth_token = auth_header.split(' ')[1] if auth_header and ' ' in auth_header else auth_header
 
     if model_name in ["dalle3", "websearch"]:
@@ -50,7 +58,6 @@ async def fetch(req):
 
     if channelId is None:
         url = "https://api.popai.pro/api/v1/chat/getChannel"
-
         headers = {
             "Accept": "application/json",
             "Accept-Encoding": "gzip, deflate, br, zstd",
@@ -72,7 +79,6 @@ async def fetch(req):
             "Sec-Fetch-Site": "same-site",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         }
-
         data = {
             "model": model_name,
             "templateId": "",
@@ -80,14 +86,11 @@ async def fetch(req):
             "language": "English",
             "fileType": None
         }
-
-        async with ClientSession() as session:
-            async with session.post(url, headers=headers, json=data) as resp:
-                if resp.status != 200:
-                    return web.Response(status=resp.status)
-
-                response_data = await resp.json()
-                channelId = response_data.get('data', {}).get('channelId')
+        resp = requests.post(url, headers=headers, json=data)
+        if resp.status_code != 200:
+            return Response(status=resp.status_code)
+        response_data = resp.json()
+        channelId = response_data.get('data', {}).get('channelId')
 
         wrapped_chunk_channelId = {
             "id": str(uuid.uuid4()),
@@ -112,21 +115,13 @@ async def fetch(req):
             "system_fingerprint": None
         }
 
-        writer = web.StreamResponse()
-        writer.headers['Access-Control-Allow-Origin'] = '*'
-        writer.headers['Access-Control-Allow-Headers'] = '*'
-        writer.headers['Content-Type'] = 'text/event-stream; charset=UTF-8'
+        def generate_channelId():
+            yield f"data: {json.dumps(wrapped_chunk_channelId, ensure_ascii=False)}\n\n".encode('utf-8')
 
-        await writer.prepare(req)
-
-        event_data = f"data: {json.dumps(wrapped_chunk_channelId, ensure_ascii=False)}\n\n"
-        await writer.write(event_data.encode('utf-8'))
-
-        return writer
+        return Response(generate_channelId(), mimetype='text/event-stream; charset=UTF-8')
 
     else:
         url = "https://api.popai.pro/api/v1/chat/send"
-
         headers = {
             "Accept": "text/event-stream",
             "Accept-Encoding": "gzip, deflate, br, zstd",
@@ -156,7 +151,6 @@ async def fetch(req):
             model_to_use = "Web Search"
         else:
             model_to_use = model_name
-
         data = {
             "isGetJson": True,
             "version": "1.3.6",
@@ -177,106 +171,71 @@ async def fetch(req):
             "translateLanguage": None,
             "docPromptTemplateId": None
         }
+        resp = requests.post(url, headers=headers, json=data)
+        if resp.status_code != 200:
+            return Response(status=resp.status_code)
+        if stream:
+            return stream_response(req, resp, model_name)
+        else:
+            return jsonify(resp.text)
 
-        async with ClientSession() as session:
-            async with session.post(url, headers=headers, json=data) as resp:
-                if resp.status != 200:
-                    return web.Response(status=resp.status)
-
-                if stream:
-                    return await stream_response(req, resp, model_name)
-                else:
-                    response_data = await resp.text()
-                    return web.json_response(response_data)
-
-
-async def stream_response(req, resp, model_name):
+def stream_response(req, resp, model_name):
     logging.info("Entering stream_response function")
 
-    writer = web.StreamResponse()
-    writer.headers['Access-Control-Allow-Origin'] = '*'
-    writer.headers['Access-Control-Allow-Headers'] = '*'
-    writer.headers['Content-Type'] = 'text/event-stream; charset=UTF-8'
-
-    await writer.prepare(req)
-
-    with tempfile.NamedTemporaryFile(mode='w+b', delete=False) as temp_file:
-        temp_file_name = temp_file.name
-        logging.info(f"Created temp file: {temp_file_name}")
-
-        async for chunk in resp.content.iter_any():
-            temp_file.write(chunk)
-
-    json_object_counter = 0
-    with open(temp_file_name, 'rb') as f:
-        for line in f:
-            chunk_str = line.decode('utf-8')
-            logging.info(f"Received chunk: {chunk_str}")
-
-            if chunk_str.startswith("data:"):
-                chunk_str = chunk_str[len("data:"):].strip()
-
-                json_objects = chunk_str.split("\n\n")
-
-                for json_object in json_objects:
+    def generate():
+        buffer = ""
+        json_object_counter = 0
+        for chunk in resp.iter_content(chunk_size=None):
+            buffer += chunk.decode('utf-8')
+            while "\n\n" in buffer:
+                json_object, buffer = buffer.split("\n\n", 1)
+                if json_object.startswith("data:"):
+                    json_object = json_object[len("data:"):].strip()
                     json_object_counter += 1
-
                     if json_object_counter == 1:
                         continue
-
                     try:
                         chunk_json = json.loads(json_object)
                     except json.JSONDecodeError as e:
                         logging.error(f"Failed to parse JSON: {e}")
                         continue
-
-                    if not isinstance(chunk_json, list) or len(chunk_json) == 0:
-                        logging.error("Received empty chunk or non-list chunk")
-                        continue
-
-                    message = chunk_json[0].get("content", "")
-                    message_id = chunk_json[0].get("messageId", "")
-                    objectid = chunk_json[0].get("chunkId", "")
-
-                    wrapped_chunk = {
-                        "id": message_id,
-                        "object": objectid,
-                        "created": 0,
-                        "model": model_name,
-                        "choices": [
-                            {
-                                "index": 0,
-                                "delta": {
-                                    "role": "assistant",
-                                    "content": message
-                                },
-                                "finish_reason": "stop",
-                            }
-                        ],
-                        "usage": {
-                            "prompt_tokens": 0,
-                            "completion_tokens": 0,
-                            "total_tokens": 0
-                        },
-                        "system_fingerprint": None
-                    }
-
-                    logging.info(f"Wrapped chunk: {wrapped_chunk}")
-
-                    event_data = f"data: {json.dumps(wrapped_chunk, ensure_ascii=False)}\n\n"
-                    await writer.write(event_data.encode('utf-8'))
-
-    os.remove(temp_file_name)
+                    for message in chunk_json:
+                        message_id = message.get("messageId", "")
+                        objectid = message.get("chunkId", "")
+                        content = message.get("content", "")
+                        wrapped_chunk = {
+                            "id": message_id,
+                            "object": objectid,
+                            "created": 0,
+                            "model": model_name,
+                            "choices": [
+                                {
+                                    "index": 0,
+                                    "delta": {
+                                        "role": "assistant",
+                                        "content": content
+                                    },
+                                    "finish_reason": "stop",
+                                }
+                            ],
+                            "usage": {
+                                "prompt_tokens": 0,
+                                "completion_tokens": 0,
+                                "total_tokens": 0
+                            },
+                            "system_fingerprint": None
+                        }
+                        logging.info(f"Wrapped chunk: {wrapped_chunk}")
+                        event_data = f"data: {json.dumps(wrapped_chunk, ensure_ascii=False)}\n\n"
+                        yield event_data.encode('utf-8')
 
     logging.info("Exiting stream_response function")
-    return writer
-
-async def onRequest(request):
-    return await fetch(request)
+    return Response(generate(), mimetype='text/event-stream; charset=UTF-8')
 
 
-app = web.Application()
-app.router.add_route("*", "/v1/chat/completions", onRequest)
+@app.route("/v1/chat/completions", methods=["GET", "POST", "OPTIONS"])
+def onRequest():
+    return fetch(request)
 
 if __name__ == '__main__':
-    web.run_app(app, host='0.0.0.0', port=3034)
+    app.run(host='0.0.0.0', port=3034)
