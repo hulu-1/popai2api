@@ -17,6 +17,7 @@ def fetch(req):
     model_name = body.get("model", "GPT-4")
     stream = body.get("stream", False)
     last_user_content = None
+    last_system_content = None
     channelId = None
 
     for message in messages:
@@ -24,10 +25,11 @@ def fetch(req):
         content = message.get("content")
         if role == "user":
             last_user_content = content
-            if "使用四到五个字直接返回这句话的简要主题，不要解释、不要标点、不要语气词、不要多余文本，不要加粗，如果没有主题，请直接返回“闲聊”" in content:
+            if content.strip() == "使用四到五个字直接返回这句话的简要主题，不要解释、不要标点、不要语气词、不要多余文本，不要加粗，如果没有主题，请直接返回“闲聊”":
                 return Response(status=200)
         elif role == "system":
-            if content == "简要总结一下对话内容，用作后续的上下文提示 prompt，控制在 200 字以内":
+            last_system_content = content
+            if content.strip() == "简要总结一下对话内容，用作后续的上下文提示 prompt，控制在 200 字以内":
                 return Response(status=200)
             try:
                 uuid.UUID(content)
