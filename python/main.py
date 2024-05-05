@@ -4,14 +4,20 @@ import json
 import uuid
 import logging
 import requests
+import os
 
 app = Flask(__name__)
 CORS(app)
+IGNORED_MODEL_NAMES = ["gpt-4", "dalle3", "gpt-3.5", "websearch", "dalle-3"]
+
+logging.basicConfig(level=logging.INFO)
+
 
 def fetch(req):
+    logging.info("body %s", req)
     if req.method == "OPTIONS":
-        return Response(response="", headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'}, status=204)
-
+        return Response(response="", headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'},
+                        status=204)
     body = req.json
     messages = body.get("messages", [])
     model_name = body.get("model", "GPT-4")
@@ -46,17 +52,20 @@ def fetch(req):
     if last_user_content is None:
         return Response(status=400, text="No user message found")
 
-    auth_header = request.headers.get("Authorization")
-    auth_token = auth_header.split(' ')[1] if auth_header and ' ' in auth_header else auth_header
+    auth_token = os.getenv("AUTHORIZATION")
 
-    if model_name in ["dalle3", "websearch"]:
-        with open('channelid.txt', 'r') as file:
-            lines = file.readlines()
-            for line in lines:
-                model, ch_id = line.strip().split(":")
-                if model == model_name:
-                    channelId = ch_id
-                    break
+    # 如果 model_name 不在 IGNORED_MODEL_NAMES 数组中，则使用默认的 GPT-4
+    if model_name.lower() not in IGNORED_MODEL_NAMES:
+        model_name = "GPT-4"
+
+    if model_name.lower() in ["dalle3", "dalle-3"]:
+        channelId = os.getenv("DALLE3_CHANNEL_ID")
+    elif model_name == "websearch":
+        channelId = os.getenv("WEB_SEARCH_CHANNEL_ID")
+    else:
+        channelId = os.getenv("CHAT_CHANNEL_ID")
+
+    logging.info("channelId %s", channelId)
 
     if channelId is None:
         url = "https://api.popai.pro/api/v1/chat/getChannel"
@@ -145,14 +154,17 @@ def fetch(req):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         }
 
-        if model_name in ["GPT-4", "dalle3"]:
+        if model_name in ["gpt-4", "dalle3", "dalle-3"]:
             model_to_use = "GPT-4"
-        elif model_name == "GPT-3.5":
+        elif model_name == "gpt-3.5":
             model_to_use = "Standard"
         elif model_name == "websearch":
             model_to_use = "Web Search"
         else:
             model_to_use = model_name
+
+        logging.info("model_name %s", model_to_use)
+
         data = {
             "isGetJson": True,
             "version": "1.3.6",
@@ -173,7 +185,12 @@ def fetch(req):
             "translateLanguage": None,
             "docPromptTemplateId": None
         }
-        resp = requests.post(url, headers=headers, json=data)
+        try:
+            resp = requests.post(url, headers=headers, json=data)
+        except requests.exceptions.RequestException as e:
+            # 处理异常，例如打印错误信息
+            logging.info("requests error occurred: %s", e)
+            return Response(status=500)
         if resp.status_code != 200:
             return Response(status=resp.status_code)
         if stream:
@@ -237,7 +254,11 @@ def stream_response(req, resp, model_name):
 
 @app.route("/v1/chat/completions", methods=["GET", "POST", "OPTIONS"])
 def onRequest():
-    return fetch(request)
+    try:
+        return fetch(request)
+    except Exception as e:
+        logging.error("An error occurred: %s", e)
+        return 'Internal Server Error', 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=3034)
