@@ -5,6 +5,7 @@ import uuid
 import logging
 import requests
 import os
+import time
 
 app = Flask(__name__)
 CORS(app)
@@ -14,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 def fetch(req):
-    logging.info("body %s", req)
+    # logging.info("body %s", req)
     if req.method == "OPTIONS":
         return Response(response="", headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'},
                         status=204)
@@ -29,25 +30,26 @@ def fetch(req):
     for message in messages:
         role = message.get("role")
         content = message.get("content")
-        if role == "user":
-            last_user_content = content
-            if content.strip() == "使用四到五个字直接返回这句话的简要主题，不要解释、不要标点、不要语气词、不要多余文本，不要加粗，如果没有主题，请直接返回“闲聊”":
-                return Response(status=200)
-        elif role == "system":
-            last_system_content = content
-            if content.strip() == "简要总结一下对话内容，用作后续的上下文提示 prompt，控制在 200 字以内":
-                return Response(status=200)
-            try:
-                uuid.UUID(content)
-                channelId = content
-            except ValueError:
-                pass
+        if isinstance(content, str):
+            if role == "user":
+                last_user_content = content
+                if content.strip() == "使用四到五个字直接返回这句话的简要主题，不要解释、不要标点、不要语气词、不要多余文本，不要加粗，如果没有主题，请直接返回“闲聊”":
+                    return Response(status=200)
+            elif role == "system":
+                last_system_content = content
+                if content.strip() == "简要总结一下对话内容，用作后续的上下文提示 prompt，控制在 200 字以内":
+                    return Response(status=200)
+                try:
+                    uuid.UUID(content)
+                    channelId = content
+                except ValueError:
+                    pass
 
-            try:
-                uuid.UUID(content)
-                channelId = content
-            except ValueError:
-                pass
+                try:
+                    uuid.UUID(content)
+                    channelId = content
+                except ValueError:
+                    pass
 
     if last_user_content is None:
         return Response(status=400, text="No user message found")
@@ -198,6 +200,7 @@ def fetch(req):
         else:
             return jsonify(resp.text)
 
+
 def stream_response(req, resp, model_name):
     logging.info("Entering stream_response function")
 
@@ -244,7 +247,7 @@ def stream_response(req, resp, model_name):
                             },
                             "system_fingerprint": None
                         }
-                        logging.info(f"Wrapped chunk: {wrapped_chunk}")
+                        # logging.info(f"Wrapped chunk: {wrapped_chunk}")
                         event_data = f"data: {json.dumps(wrapped_chunk, ensure_ascii=False)}\n\n"
                         yield event_data.encode('utf-8')
 
@@ -259,6 +262,19 @@ def onRequest():
     except Exception as e:
         logging.error("An error occurred: %s", e)
         return 'Internal Server Error', 500
+
+
+@app.get('/v1/models')
+def list_models():
+    return {
+        "object": "list",
+        "data": [{
+            "id": m,
+            "object": "model",
+            "created": int(time.time()),
+            "owned_by": "popai"
+        } for m in IGNORED_MODEL_NAMES]
+    }
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=3034)
