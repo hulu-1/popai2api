@@ -69,39 +69,43 @@ def is_base64_image(base64_string):
 
 def fetch(req):
     # logging.info("body %s", req.json)
-    global content
-    global image_url
+    content =""
+    image_url = []
     if req.method == "OPTIONS":
         return Response(status=204, headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'})
     body = req.get_json()
     messages = body.get("messages", [])
     model_name = body.get("model", "GPT-4")
+    prompt = body.get("prompt", False)
     stream = body.get("stream", False)
     last_user_content, last_system_content, channelId = None, None, None
+    if not messages and prompt:
+        content = prompt
+        last_user_content = prompt
+    elif messages:
+        for message in messages:
+            role = message.get("role")
+            content, image_url = process_content(message.get("content"))
+            if isinstance(content, str):
+                if role == "user":
+                    last_user_content = content
+                    if content.strip() == "使用四到五个字直接返回这句话的简要主题，不要解释、不要标点、不要语气词、不要多余文本，不要加粗，如果没有主题，请直接返回“闲聊”":
+                        return Response(status=200)
+                elif role == "system":
+                    last_system_content = content
+                    if content.strip() == "简要总结一下对话内容，用作后续的上下文提示 prompt，控制在 200 字以内":
+                        return Response(status=200)
+                    try:
+                        uuid.UUID(content)
+                        channelId = content
+                    except ValueError:
+                        pass
 
-    for message in messages:
-        role = message.get("role")
-        content, image_url = process_content(message.get("content"))
-        if isinstance(content, str):
-            if role == "user":
-                last_user_content = content
-                if content.strip() == "使用四到五个字直接返回这句话的简要主题，不要解释、不要标点、不要语气词、不要多余文本，不要加粗，如果没有主题，请直接返回“闲聊”":
-                    return Response(status=200)
-            elif role == "system":
-                last_system_content = content
-                if content.strip() == "简要总结一下对话内容，用作后续的上下文提示 prompt，控制在 200 字以内":
-                    return Response(status=200)
-                try:
-                    uuid.UUID(content)
-                    channelId = content
-                except ValueError:
-                    pass
-
-                try:
-                    uuid.UUID(content)
-                    channelId = content
-                except ValueError:
-                    pass
+                    try:
+                        uuid.UUID(content)
+                        channelId = content
+                    except ValueError:
+                        pass
 
     if last_user_content is None:
         return Response("No user message found", status=400)
