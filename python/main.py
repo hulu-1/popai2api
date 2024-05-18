@@ -1,35 +1,87 @@
-from flask import Flask, request, Response, jsonify
-from flask_cors import CORS, cross_origin
 import json
-import uuid
 import logging
-import requests
 import os
 import time
+import uuid
+import base64
+import imghdr
+
+import requests
+from flask import Flask, request, Response, jsonify
+from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
-IGNORED_MODEL_NAMES = ["gpt-4", "dalle3", "gpt-3.5", "websearch", "dalle-3"]
-
+IGNORED_MODEL_NAMES = ["gpt-4", "dalle3", "gpt-3.5", "websearch", "dalle-3", "gpt-4o"]
 logging.basicConfig(level=logging.INFO)
 
 
+def process_content(msg):
+    text_array = []
+    image_url_array = []
+    if isinstance(msg, str):
+        return msg, image_url_array
+    elif isinstance(msg, list):
+        for message in msg:
+            content_type = message.get("type")
+            if content_type == "text":
+                text_array.append(message.get("text", ""))
+            elif content_type == "image_url":
+                url = message.get("image_url", {}).get("url", "")
+                if is_base64_image(url) :
+                    url = upload_image_to_telegraph(url)
+                image_url_array.append(url)
+        return '\n'.join(text_array), image_url_array
+
+
+def upload_image_to_telegraph(base64_string):
+    if base64_string.startswith('data:image'):
+        base64_string = base64_string.split(',')[1]
+    image_data = base64.b64decode(base64_string)
+
+    image_type = imghdr.what(None, image_data)
+
+    if image_type is None:
+        raise ValueError("Invalid image data")
+
+    mime_type = f"image/{image_type}"
+    files = {
+        'file': (f'image.{image_type}', image_data, mime_type)
+    }
+    response = requests.post('https://telegra.ph/upload', files=files)
+
+    # 检查响应状态代码
+    if response.status_code == 200:
+        # 解析响应的JSON数据
+        json_response = response.json()
+        if isinstance(json_response, list) and 'src' in json_response[0]:
+            # 返回图片的URL
+            return 'https://telegra.ph' + json_response[0]['src']
+        else:
+            raise ValueError("Unexpected response format: {}".format(json_response))
+    else:
+        raise Exception("Failed to upload image. Status code: {}".format(response.status_code))
+
+
+def is_base64_image(base64_string):
+    return base64_string.startswith('data:image')
+
+
 def fetch(req):
-    # logging.info("body %s", req)
+    # logging.info("body %s", req.json)
+    global content
+    global image_url
     if req.method == "OPTIONS":
-        return Response(response="", headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'},
-                        status=204)
-    body = req.json
+        return Response(status=204, headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'})
+    body = req.get_json()
     messages = body.get("messages", [])
     model_name = body.get("model", "GPT-4")
     stream = body.get("stream", False)
-    last_user_content = None
-    last_system_content = None
-    channelId = None
+    last_user_content, last_system_content, channelId = None, None, None
 
     for message in messages:
         role = message.get("role")
-        content = message.get("content")
+        content, image_url = process_content(message.get("content"))
         if isinstance(content, str):
             if role == "user":
                 last_user_content = content
@@ -52,7 +104,7 @@ def fetch(req):
                     pass
 
     if last_user_content is None:
-        return Response(status=400, text="No user message found")
+        return Response("No user message found", status=400)
 
     auth_token = os.getenv("AUTHORIZATION")
 
@@ -156,14 +208,16 @@ def fetch(req):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         }
 
-        if model_name in ["gpt-4", "dalle3", "dalle-3"]:
-            model_to_use = "GPT-4"
-        elif model_name == "gpt-3.5":
-            model_to_use = "Standard"
-        elif model_name == "websearch":
-            model_to_use = "Web Search"
-        else:
-            model_to_use = model_name
+        model_mapping = {
+            "gpt-4": "GPT-4",
+            "dalle3": "GPT-4",
+            "dalle-3": "GPT-4",
+            "gpt-3.5": "Standard",
+            "websearch": "Web Search",
+            "gpt-4o": "GPT-4o"
+        }
+
+        model_to_use = model_mapping.get(model_name, model_name)
 
         logging.info("model_name %s", model_to_use)
 
@@ -175,19 +229,20 @@ def fetch(req):
             "message": last_user_content,
             "model": model_to_use,
             "messageIds": [],
+            "imageUrls": image_url,
             "improveId": None,
             "richMessageId": None,
             "isNewChat": False,
             "action": None,
             "isGeneratePpt": False,
             "isSlidesChat": False,
-            "imageUrls": [],
             "roleEnum": None,
             "pptCoordinates": "",
             "translateLanguage": None,
             "docPromptTemplateId": None
         }
         try:
+            # logging.info("post url= %s headers = %s data = %s", url, headers, data)
             resp = requests.post(url, headers=headers, json=data)
         except requests.exceptions.RequestException as e:
             # 处理异常，例如打印错误信息
@@ -275,6 +330,7 @@ def list_models():
             "owned_by": "popai"
         } for m in IGNORED_MODEL_NAMES]
     }
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=3034)
