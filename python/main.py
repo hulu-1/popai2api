@@ -13,7 +13,9 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
-IGNORED_MODEL_NAMES = ["gpt-4", "dalle3", "gpt-3.5", "websearch", "dalle-3", "gpt-4o"]
+ignored_model_names = ["gpt-4", "dalle3", "gpt-3.5", "websearch", "dalle-3", "gpt-4o"]
+image_model = [ "dalle3", "dalle-3"]
+
 logging.basicConfig(level=logging.INFO)
 # 存储map，包含channel_id和到期时间
 storage_map = {}
@@ -90,7 +92,7 @@ def generate_hash(contents):
     return hashlib.md5(concatenated.encode('utf-8')).hexdigest()
 
 
-def get_channel_id(hash_value, token, model_name, content):
+def get_channel_id(hash_value, token, model_name, content, template_id):
     # 检查缓存中是否存在且未过期
     if hash_value in storage_map:
         channel_id, expiry_time = storage_map[hash_value]
@@ -98,7 +100,7 @@ def get_channel_id(hash_value, token, model_name, content):
             return channel_id
 
     # 如果缓存不存在或已过期，调用第三方接口获取新的 channel_id
-    channel_id = fetch_channel_id(token, model_name, content)
+    channel_id = fetch_channel_id(token, model_name, content, template_id)
 
     # 将新的 channel_id 存储到缓存中，有效期设置为1天
     expiry_time = datetime.now() + timedelta(days=1)
@@ -107,7 +109,7 @@ def get_channel_id(hash_value, token, model_name, content):
     return channel_id
 
 
-def fetch_channel_id(auth_token, model_name, content):
+def fetch_channel_id(auth_token, model_name, content, template_id):
     url = "https://api.popai.pro/api/v1/chat/getChannel"
     headers = {
         "Accept": "application/json",
@@ -131,7 +133,7 @@ def fetch_channel_id(auth_token, model_name, content):
     }
     data = {
         "model": model_name,
-        "templateId": "",
+        "templateId": template_id,
         "message": content,
         "language": "English",
         "fileType": None
@@ -255,12 +257,11 @@ def fetch(req):
     body = req.get_json()
     messages = body.get("messages", [])
     model_name = body.get("model", "GPT-4")
+    template_id = 2000000 if model_name in image_model else ''
     prompt = body.get("prompt", False)
     stream = body.get("stream", False)
     auth_token = os.getenv("AUTHORIZATION")
-    logging.info("model_name %s", model_name)
     model_to_use = map_model_name(model_name)
-    logging.info("model_to_use %s", model_to_use)
 
     if not messages and prompt:
         content = prompt
@@ -274,7 +275,7 @@ def fetch(req):
         assistant_contents = get_assistant_contents(messages)
         hash_value = generate_hash(assistant_contents)
         # 获取channel_id
-        channel_id = get_channel_id(hash_value, auth_token, model_to_use, final_user_content)
+        channel_id = get_channel_id(hash_value, auth_token, model_to_use, final_user_content, template_id)
 
     logging.info("image_url %s", image_url)
 
@@ -358,7 +359,7 @@ def list_models():
             "object": "model",
             "created": int(time.time()),
             "owned_by": "popai"
-        } for m in IGNORED_MODEL_NAMES]
+        } for m in ignored_model_names]
     }
 
 
