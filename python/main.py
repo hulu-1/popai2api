@@ -13,8 +13,8 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
-ignored_model_names = ["gpt-4", "dalle3", "gpt-3.5", "websearch", "dalle-3", "gpt-4o"]
-image_model = [ "dalle3", "dalle-3"]
+ignored_model_names = ["gpt-4", "gpt-3.5", "websearch", "dall-e-3", "gpt-4o"]
+image_model = ["dalle3", "dalle-3", "dall-e-3"]
 
 logging.basicConfig(level=logging.INFO)
 # 存储map，包含channel_id和到期时间
@@ -87,9 +87,9 @@ def get_assistant_contents(messages, limit=3):
     return contents
 
 
-def generate_hash(contents):
+def generate_hash(contents, model_name):
     concatenated = ''.join(contents)
-    return hashlib.md5(concatenated.encode('utf-8')).hexdigest()
+    return model_name + hashlib.md5(concatenated.encode('utf-8')).hexdigest()
 
 
 def get_channel_id(hash_value, token, model_name, content, template_id):
@@ -233,6 +233,7 @@ def map_model_name(model_name):
         "gpt-4": "GPT-4",
         "dalle3": "GPT-4",
         "dalle-3": "GPT-4",
+        "dall-e-3": "GPT-4",
         "gpt-3.5": "Standard",
         "websearch": "Web Search",
         "internet": "Web Search",
@@ -242,7 +243,7 @@ def map_model_name(model_name):
     sorted_keys = sorted(model_mapping.keys(), key=len, reverse=True)
 
     for key in sorted_keys:
-        if model_name.startswith(key):
+        if model_name.lower().startswith(key):
             return model_mapping[key]
 
     return "GPT-4"
@@ -256,12 +257,12 @@ def fetch(req):
     image_url = []
     body = req.get_json()
     messages = body.get("messages", [])
-    model_name = body.get("model", "GPT-4")
-    template_id = 2000000 if model_name in image_model else ''
+    model_name = body.get("model")
     prompt = body.get("prompt", False)
     stream = body.get("stream", False)
     auth_token = os.getenv("AUTHORIZATION")
     model_to_use = map_model_name(model_name)
+    template_id = 2000000 if model_name in image_model else ''
 
     if not messages and prompt:
         content = prompt
@@ -273,7 +274,7 @@ def fetch(req):
 
         # 获取前三条role为assistant的content值，并生成hash
         assistant_contents = get_assistant_contents(messages)
-        hash_value = generate_hash(assistant_contents)
+        hash_value = generate_hash(assistant_contents, model_to_use)
         # 获取channel_id
         channel_id = get_channel_id(hash_value, auth_token, model_to_use, final_user_content, template_id)
 
