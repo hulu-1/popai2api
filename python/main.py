@@ -77,13 +77,14 @@ def is_base64_image(base64_string):
     return base64_string.startswith('data:image')
 
 
-def get_assistant_contents(messages, limit=3):
+def get_user_contents(messages, final_user_content, limit=3):
     contents = []
+    user_content_added = False
     for message in messages:
-        if message.get("role") == "assistant":
-            contents.append(message.get("content", ""))
-            if len(contents) == limit:
-                break
+        if message.get("role") == "user":
+            if not user_content_added:
+                contents.append(str(message.get("content", '')))
+                user_content_added = True
     return contents
 
 
@@ -259,7 +260,7 @@ def fetch(req):
     messages = body.get("messages", [])
     model_name = body.get("model")
     prompt = body.get("prompt", False)
-    stream = body.get("stream", False)
+    stream = body.get("stream", True)
     auth_token = os.getenv("AUTHORIZATION")
     model_to_use = map_model_name(model_name)
     template_id = 2000000 if model_name in image_model else ''
@@ -273,8 +274,9 @@ def fetch(req):
         final_user_content, image_url = process_content(last_message.get('content'))
 
         # 获取前三条role为assistant的content值，并生成hash
-        assistant_contents = get_assistant_contents(messages)
-        hash_value = generate_hash(assistant_contents, model_to_use)
+        user_contents = get_user_contents(messages, final_user_content)
+        hash_value = generate_hash(user_contents, model_to_use)
+
         # 获取channel_id
         channel_id = get_channel_id(hash_value, auth_token, model_to_use, final_user_content, template_id)
 
