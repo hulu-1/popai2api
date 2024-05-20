@@ -285,6 +285,7 @@ def fetch(req):
 
     logging.info("channelId %s", channel_id)
     logging.info("model_name %s", model_to_use)
+    logging.info("template_id %s", template_id)
     return send_chat_message(req, auth_token, channel_id, final_user_content, model_to_use, stream, image_url)
 
 
