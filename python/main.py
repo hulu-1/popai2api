@@ -384,7 +384,7 @@ def stream_response(req, resp, model_name):
 @app.route("/v1/chat/completions", methods=["GET", "POST", "OPTIONS"])
 def onRequest():
     try:
-        logging.info("Request request: %s", request.json)
+        # logging.info("Request request: %s", request.json)
         return fetch(request)
     except Exception as e:
         logging.error("An error occurred: %s", e)
