@@ -301,7 +301,7 @@ def fetch(req):
     messages = body.get("messages", [])
     model_name = body.get("model")
     prompt = body.get("prompt", False)
-    stream = body.get("stream", True)
+    stream = body.get("stream", False)
 
     model_to_use = map_model_name(model_name)
     template_id = 2000000 if model_name in IMAGE_MODEL_NAMES else ''
