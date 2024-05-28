@@ -25,8 +25,8 @@ storage_map = {}
 # Logging configuration
 # 扩展日志格式
 extended_log_format = (
-    '%(asctime)s - %(levelname)s - %(name)s - %(threadName)s - '
-    '%(process)d - %(filename)s:%(lineno)d - %(funcName)s - %(message)s'
+    '%(asctime)s | %(levelname)s | %(name)s | '
+    '%(process)d | %(filename)s:%(lineno)d | %(funcName)s | %(message)s'
 )
 logging.basicConfig(level=logging.DEBUG, format=extended_log_format)
 
@@ -384,7 +384,7 @@ def stream_response(req, resp, model_name):
 @app.route("/v1/chat/completions", methods=["GET", "POST", "OPTIONS"])
 def onRequest():
     try:
-        logging.info("Request request: %s", request)
+        logging.info("Request request: %s", request.json)
         return fetch(request)
     except Exception as e:
         logging.error("An error occurred: %s", e)
