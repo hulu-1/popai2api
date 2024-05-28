@@ -23,7 +23,12 @@ AUTH_TOKEN = os.getenv("AUTHORIZATION")
 storage_map = {}
 
 # Logging configuration
-logging.basicConfig(level=logging.INFO)
+# 扩展日志格式
+extended_log_format = (
+    '%(asctime)s - %(levelname)s - %(name)s - %(threadName)s - '
+    '%(process)d - %(filename)s:%(lineno)d - %(funcName)s - %(message)s'
+)
+logging.basicConfig(level=logging.DEBUG, format=extended_log_format)
 
 
 def process_content(message):
