@@ -1,11 +1,30 @@
 # 用户手册
+## 项目结构
+
+```text
+project-root/
+├── Dockerfile
+├── requirements.txt
+└── app/
+    ├── __init__.py
+    ├── main.py
+    ├──  config.py
+    ├──utils.py
+    └── routes.py
+```
 
 
+## 功能
+- [x] 支持图片上传
+- [x] 支持gpt-4o
+- [x] 模拟对话隔离（根据客户前一条消息作为key）
+- [x] 支持多账号轮询（AUTHORIZATION = auth1,auth2,auth3 ）
 
-## docker 启动
+## 部署 
+### docker
 
 ```bash
-docker run --name popai2api --restart=always -d -p 8888:5000 -e AUTHORIZATION=<AUTHORIZATION> -e CHAT_CHANNEL_ID=<CHAT_CHANNEL_ID> -e DALLE3_CHANNEL_ID=<DALLE3_CHANNEL_ID> -e WEB_SEARCH_CHANNEL_ID=<WEB_SEARCH_CHANNEL_ID> hulu365/popai2api:latest
+docker run --name popai2api --restart=always -d -p 3000:3000 -e AUTHORIZATION = {{auth1,auth2,auth3}} hulu365/popai2api:latest
 ```
 
 ## draw

@@ -1,3 +1,0 @@
-dalle3:自己在官网获取画图的channelid
-websearch:同样方法获取
-chat:
