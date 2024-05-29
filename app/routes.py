@@ -18,7 +18,7 @@ def onRequest():
     try:
         return fetch(request)
     except Exception as e:
-        logging.error("An error occurred: %s", e, exc_info=True)
+        logging.error("An error occurred: %s", e)
         return handle_error(e)
 
 
