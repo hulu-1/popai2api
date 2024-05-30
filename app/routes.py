@@ -2,12 +2,12 @@ import logging
 import os
 from datetime import datetime, timedelta
 
-from flask import request, Response, current_app as app, Blueprint
+from flask import request, Response, current_app as app
 
-from app.utils import send_chat_message, fetch_channel_id, map_model_name, process_content, get_user_contents, \
-    generate_hash, get_next_auth_token, handle_error
 from app.config import IGNORED_MODEL_NAMES, IMAGE_MODEL_NAMES, AUTH_TOKEN
 from app.config import configure_logging
+from app.utils import send_chat_message, fetch_channel_id, map_model_name, process_content, get_user_contents, \
+    generate_hash, get_next_auth_token, handle_error
 
 configure_logging()
 storage_map = {}
@@ -49,7 +49,7 @@ def get_channel_id(hash_value, token, model_name, content, template_id):
 def fetch(req):
     if req.method == "OPTIONS":
         return Response(status=204, headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*'})
-    token = get_next_auth_token(AUTH_TOKEN.split(','))
+    token = get_next_auth_token(AUTH_TOKEN)
     body = req.get_json()
     messages = body.get("messages", [])
     model_name = body.get("model")

@@ -315,9 +315,12 @@ def handle_http_response(resp):
 
 
 def get_next_auth_token(tokens):
+    if not tokens:
+        raise ValueError("No tokens provided.")
+    auth_tokens = tokens.split(',')
     global current_token_index
-    token = tokens[current_token_index]
-    current_token_index = (current_token_index + 1) % len(tokens)
+    token = auth_tokens[current_token_index]
+    current_token_index = (current_token_index + 1) % len(auth_tokens)
     return token
 
 
@@ -325,7 +328,7 @@ def handle_error(e):
     error_response = {
         "error": {
             "message": str(e),
-            "type": "coze_2_api_error"
+            "type": "popai_2_api_error"
         }
     }
     return jsonify(error_response), 500
