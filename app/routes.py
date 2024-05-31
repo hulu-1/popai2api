@@ -62,7 +62,7 @@ def fetch(req):
         last_message = messages[-1]
         first_user_message, end_user_message, concatenated_messages = get_user_contents(messages, HISTORY_MSG_LIMIT)
         final_user_content, image_url = process_content(last_message.get('content'))
-        final_user_content = concatenated_messages + final_user_content
+        final_user_content = concatenated_messages + '\n' + final_user_content if concatenated_messages else final_user_content
         hash_value = generate_hash(first_user_message, model_to_use, token)
         channel_id = get_channel_id(hash_value, token, model_to_use, final_user_content, template_id)
 

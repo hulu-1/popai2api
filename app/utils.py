@@ -83,7 +83,7 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
         if response.headers.get('Content-Type') == 'text/event-stream;charset=UTF-8':
             if not user_stream:
                 return stream_2_json(response, model_name)
-            return stream_response(req, response, model_name)
+            return stream_response(response, model_name)
         else:
             return stream_2_json(response, model_name)
     except requests.exceptions.RequestException as e:
@@ -91,7 +91,7 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
         return handle_error(e)
 
 
-def stream_response(req, resp, model_name):
+def stream_response(resp, model_name):
     logging.info("Entering stream_response function")
 
     def generate():
@@ -230,23 +230,32 @@ def process_msg_content(content):
 
 def get_user_contents(messages, limit):
     limit = int(limit)
-    selected_messages = deque(maxlen=limit + 1)
-    end_user_message = None
+    selected_messages = deque(maxlen=limit)
     first_user_message = None
+
+    # 过滤并处理用户消息
     for message in messages:
-        if message.get("role") != "user":
-            continue
-        content = process_msg_content(message.get("content"))
-        if content is None:
-            continue
-        selected_messages.append(content)
-        end_user_message = content
-        if first_user_message is None:
-            first_user_message = content
-        if len(selected_messages) == limit+1:
-            selected_messages.popleft()
+        if message.get("role") == "user":
+            content = process_msg_content(message.get("content"))
+            if content:
+                selected_messages.append(content)
+                if first_user_message is None:
+                    first_user_message = content
+
+    # 检查是否有足够的消息
+    if selected_messages:
+        end_user_message = selected_messages[-1]
+    else:
+        end_user_message = None
+
+    # 拼接消息内容
+    if selected_messages:
+        selected_messages.pop()  # 移除最后一条数据
+
     concatenated_messages = ' \n'.join(selected_messages)
+
     return first_user_message, end_user_message, concatenated_messages
+
 
 # def get_user_contents(messages, limit=3):
 #     user_messages = [str(message.get("content", '')) for message in messages if message.get("role") == "user"]
