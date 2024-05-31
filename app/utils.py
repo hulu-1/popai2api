@@ -4,6 +4,7 @@ import imghdr
 import json
 import logging
 import os
+from collections import deque
 
 import requests
 from flask import Response, jsonify
@@ -28,12 +29,12 @@ def get_env_variable(var_name):
     return os.getenv(var_name)
 
 
-def send_chat_message(req, auth_token, channel_id, final_user_content, model_name, stream, image_url):
+def send_chat_message(req, auth_token, channel_id, final_user_content, model_name, user_stream, image_url):
     logging.info("Channel ID: %s", channel_id)
     # logging.info("Final User Content: %s", final_user_content)
     logging.info("Model Name: %s", model_name)
     logging.info("Image URL: %s", image_url)
-    logging.info("Stream: %s", stream)
+    logging.info("User stream: %s", user_stream)
     url = "https://api.popai.pro/api/v1/chat/send"
     headers = {
         "Accept": "text/event-stream",
@@ -80,7 +81,7 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
     try:
         response = requests.post(url, headers=headers, json=data, stream=True)
         if response.headers.get('Content-Type') == 'text/event-stream;charset=UTF-8':
-            if not stream:
+            if not user_stream:
                 return stream_2_json(response, model_name)
             return stream_response(req, response, model_name)
         else:
@@ -219,14 +220,48 @@ def is_base64_image(base64_string):
     return base64_string.startswith('data:image')
 
 
-def get_user_contents(messages, limit=3):
-    contents = []
-    user_content_added = False
+def process_msg_content(content):
+    if isinstance(content, str):
+        return content
+    elif isinstance(content, list):
+        return ' '.join(item.get("text") for item in content if item.get("type") == "text")
+    return None
+
+
+def get_user_contents(messages, limit):
+    selected_messages = deque(maxlen=limit+1)
+    end_user_message = None
+    first_user_message = None
     for message in messages:
-        if message.get("role") == "user" and not user_content_added:
-            contents.append(str(message.get("content", '')))
-            user_content_added = True
-    return contents
+        if message.get("role") != "user":
+            continue
+        content = process_msg_content(message.get("content"))
+        if content is None:
+            continue
+        selected_messages.append(content)
+        end_user_message = content
+        if first_user_message is None:
+            first_user_message = content
+        if len(selected_messages) == limit+1:
+            selected_messages.popleft()
+    concatenated_messages = ' \n'.join(selected_messages)
+    return first_user_message, end_user_message, concatenated_messages
+
+# def get_user_contents(messages, limit=3):
+#     user_messages = [str(message.get("content", '')) for message in messages if message.get("role") == "user"]
+#     end_message = user_messages[-1] if user_messages else None
+#     selected_messages = user_messages[-limit-1:-1] if len(user_messages) > limit else user_messages[:-1]
+#     concatenated_messages = ' '.join(selected_messages)
+#     return end_message, concatenated_messages
+
+# def get_user_contents(messages, limit=3):
+#     contents = []
+#     user_content_added = False
+#     for message in messages:
+#         if message.get("role") == "user" and not user_content_added:
+#             contents.append(str(message.get("content", '')))
+#             user_content_added = True
+#     return contents
 
 
 def fetch_channel_id(auth_token, model_name, content, template_id):
@@ -321,6 +356,7 @@ def get_next_auth_token(tokens):
     global current_token_index
     token = auth_tokens[current_token_index]
     current_token_index = (current_token_index + 1) % len(auth_tokens)
+    logging.info("Using token: %s", token)
     return token
 
 
@@ -332,3 +368,11 @@ def handle_error(e):
         }
     }
     return jsonify(error_response), 500
+
+
+def get_request_parameters(body):
+    messages = body.get("messages", [])
+    model_name = body.get("model")
+    prompt = body.get("prompt", False)
+    stream = body.get("stream", False)
+    return messages, model_name, prompt, stream

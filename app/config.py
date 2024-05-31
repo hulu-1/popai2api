@@ -5,6 +5,7 @@ import logging
 IGNORED_MODEL_NAMES = ["gpt-4", "gpt-3.5", "websearch", "dall-e-3", "gpt-4o"]
 IMAGE_MODEL_NAMES = ["dalle3", "dalle-3", "dall-e-3"]
 AUTH_TOKEN = os.getenv("AUTHORIZATION")
+HISTORY_MSG_LIMIT = os.getenv("HISTORY_MSG_LIMIT", 0)
 
 
 def configure_logging():
