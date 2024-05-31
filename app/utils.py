@@ -229,7 +229,8 @@ def process_msg_content(content):
 
 
 def get_user_contents(messages, limit):
-    selected_messages = deque(maxlen=limit+1)
+    limit = int(limit)
+    selected_messages = deque(maxlen=limit + 1)
     end_user_message = None
     first_user_message = None
     for message in messages:
