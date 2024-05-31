@@ -78,7 +78,7 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
     }
 
     try:
-        response = requests.post(url, headers=headers, json=data)
+        response = requests.post(url, headers=headers, json=data, stream=True)
         if response.headers.get('Content-Type') == 'text/event-stream;charset=UTF-8':
             if not stream:
                 return stream_2_json(response, model_name)
