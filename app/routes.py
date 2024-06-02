@@ -82,7 +82,7 @@ def fetch(req):
     if final_user_content is None:
         return Response("No user message found", status=400)
 
-    return send_chat_message(req, token, channel_id, final_user_content, model_to_use, user_stream, image_url)
+    return send_chat_message(req, token, channel_id, final_user_content, model_to_use, user_stream, image_url, model_name)
 
 
 def handle_options_request():

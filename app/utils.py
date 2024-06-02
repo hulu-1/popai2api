@@ -9,7 +9,7 @@ from collections import deque
 import requests
 from flask import Response, jsonify
 
-from app.config import configure_logging
+from app.config import configure_logging, IMAGE_MODEL_NAMES
 
 configure_logging()
 current_token_index = 0
@@ -29,7 +29,8 @@ def get_env_variable(var_name):
     return os.getenv(var_name)
 
 
-def send_chat_message(req, auth_token, channel_id, final_user_content, model_name, user_stream, image_url):
+def send_chat_message(req, auth_token, channel_id, final_user_content, model_name, user_stream, image_url,
+                      user_model_name):
     logging.info("Channel ID: %s", channel_id)
     # logging.info("Final User Content: %s", final_user_content)
     logging.info("Model Name: %s", model_name)
@@ -82,10 +83,10 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
         response = requests.post(url, headers=headers, json=data, stream=True)
         if response.headers.get('Content-Type') == 'text/event-stream;charset=UTF-8':
             if not user_stream:
-                return stream_2_json(response, model_name)
+                return stream_2_json(response, model_name, user_model_name)
             return stream_response(response, model_name)
         else:
-            return stream_2_json(response, model_name)
+            return stream_2_json(response, model_name, user_model_name)
     except requests.exceptions.RequestException as e:
         logging.error("send_chat_message error: %s", e)
         return handle_error(e)
@@ -128,7 +129,7 @@ def stream_response(resp, model_name):
     return Response(generate(), mimetype='text/event-stream; charset=UTF-8')
 
 
-def stream_2_json(resp, model_name):
+def stream_2_json(resp, model_name, user_model_name):
     logging.info("Entering stream_2_json function")
 
     chunks = []
@@ -139,29 +140,37 @@ def stream_2_json(resp, model_name):
         objectid = message.get("chunkId", "")
         content = message.get("content", "")
         merged_content += content
-
-        wrapped_chunk = {
-            "id": message_id,
-            "object": "chat.completion",
-            "created": 0,
-            "model": model_name,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": merged_content
-                    },
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {
-                "prompt_tokens": 13,
-                "completion_tokens": 7,
-                "total_tokens": 20
-            },
-            "system_fingerprint": None
-        }
+        if user_model_name in IMAGE_MODEL_NAMES:
+            # 如果 model_name 在 IMAGE_MODEL_NAMES 内，转换为包含 URL 的格式
+            wrapped_chunk = {
+                "created": 0,
+                "data": [
+                    {"url": merged_content}  # 假设 merged_content 是 URL
+                ]
+            }
+        else:
+            wrapped_chunk = {
+                "id": message_id,
+                "object": "chat.completion",
+                "created": 0,
+                "model": model_name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": merged_content
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 13,
+                    "completion_tokens": 7,
+                    "total_tokens": 20
+                },
+                "system_fingerprint": None
+            }
         append_to_chunks(wrapped_chunk)
 
     logging.info("Exiting stream_2_json function")
