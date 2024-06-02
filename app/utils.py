@@ -4,6 +4,7 @@ import imghdr
 import json
 import logging
 import os
+import re
 from collections import deque
 
 import requests
@@ -145,7 +146,7 @@ def stream_2_json(resp, model_name, user_model_name):
             wrapped_chunk = {
                 "created": 0,
                 "data": [
-                    {"url": merged_content}  # 假设 merged_content 是 URL
+                    {"url": extract_url_from_content(merged_content)}
                 ]
             }
         else:
@@ -395,3 +396,9 @@ def get_request_parameters(body):
     prompt = body.get("prompt", False)
     stream = body.get("stream", False)
     return messages, model_name, prompt, stream
+
+
+def extract_url_from_content(content):
+    # 使用正则表达式从 Markdown 内容中提取 URL
+    match = re.search(r'\!\[.*?\]\((.*?)\)', content)
+    return match.group(1) if match else content
