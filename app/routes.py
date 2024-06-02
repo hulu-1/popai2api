@@ -18,7 +18,7 @@ def onRequest():
     try:
         return fetch(request)
     except Exception as e:
-        logging.error("An error occurred: %s", e)
+        logging.error("An error occurred with chat : %s", e)
         return handle_error(e)
 
 
@@ -33,6 +33,16 @@ def list_models():
             "owned_by": "popai"
         } for m in IGNORED_MODEL_NAMES]
     }
+
+
+@app.route('/v1/images/generations', methods= ["post"])
+def image():
+    try:
+        request.get_json()["model"] = IMAGE_MODEL_NAMES[0]
+        return fetch(request)
+    except Exception as e:
+        logging.error("An error occurred with image : %s", e)
+        return handle_error(e)
 
 
 def get_channel_id(hash_value, token, model_name, content, template_id):
@@ -57,14 +67,17 @@ def fetch(req):
 
     if not messages and prompt:
         final_user_content = prompt
-        channel_id = os.getenv("CHAT_CHANNEL_ID")
+        first_user_message = final_user_content
+        image_url = None
     elif messages:
         last_message = messages[-1]
         first_user_message, end_user_message, concatenated_messages = get_user_contents(messages, HISTORY_MSG_LIMIT)
         final_user_content, image_url = process_content(last_message.get('content'))
         final_user_content = concatenated_messages + '\n' + final_user_content if concatenated_messages else final_user_content
-        hash_value = generate_hash(first_user_message, model_to_use, token)
-        channel_id = get_channel_id(hash_value, token, model_to_use, final_user_content, template_id)
+        # channel_id = get_channel_id(hash_value, token, model_to_use, final_user_content, template_id)
+
+    hash_value = generate_hash(first_user_message, model_to_use, token)
+    channel_id = get_channel_id(hash_value, token, model_to_use, final_user_content, template_id)
 
     if final_user_content is None:
         return Response("No user message found", status=400)
