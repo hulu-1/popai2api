@@ -115,9 +115,9 @@ def stream_response(resp, model_name):
                     }
                 ],
                 "usage": {
-                    "prompt_tokens": 0,
-                    "completion_tokens": 0,
-                    "total_tokens": 0
+                    "prompt_tokens": 13,
+                    "completion_tokens": 7,
+                    "total_tokens": 20
                 },
                 "system_fingerprint": None
             }
@@ -156,9 +156,9 @@ def stream_2_json(resp, model_name):
                 }
             ],
             "usage": {
-                "prompt_tokens": 0,
-                "completion_tokens": 0,
-                "total_tokens": 0
+                "prompt_tokens": 13,
+                "completion_tokens": 7,
+                "total_tokens": 20
             },
             "system_fingerprint": None
         }
