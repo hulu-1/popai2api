@@ -107,7 +107,7 @@ def stream_response(resp, model_name):
                 "choices": [
                     {
                         "index": 0,
-                        "delta": {
+                        "message": {
                             "role": "assistant",
                             "content": content
                         },
@@ -148,7 +148,7 @@ def stream_2_json(resp, model_name):
             "choices": [
                 {
                     "index": 0,
-                    "delta": {
+                    "message": {
                         "role": "assistant",
                         "content": merged_content
                     },
