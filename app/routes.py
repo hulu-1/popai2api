@@ -1,5 +1,4 @@
 import logging
-import os
 from datetime import datetime, timedelta
 
 from flask import request, Response, current_app as app
