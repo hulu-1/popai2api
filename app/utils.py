@@ -214,9 +214,6 @@ def upload_image_to_telegraph(base64_string):
         mime_type = f"image/{image_type}"
         files = {'file': (f'image.{image_type}', image_data, mime_type)}
         response = request_with_proxy_image('https://telegra.ph/upload', files=files)
-
-        response = requests.post( files=files)
-
         response.raise_for_status()
         json_response = response.json()
         if isinstance(json_response, list) and 'src' in json_response[0]:
