@@ -8,8 +8,8 @@ project-root/
 └── app/
     ├── __init__.py
     ├── main.py
-    ├──  config.py
-    ├──utils.py
+    ├── config.py
+    ├── utils.py
     └── routes.py
 ```
 
@@ -19,6 +19,8 @@ project-root/
 - [x] 支持gpt-4o
 - [x] 模拟对话隔离（根据客户前一条消息作为key）
 - [x] 支持多账号轮询（AUTHORIZATION = auth1,auth2,auth3 ）
+- [x] 支持proxy：HTTPS_PROXIES = proxy1,proxy2
+- [x] 新增 “ /v1/images/generations” 路由，兼容OPENAI文生图报文格式
 
 ## 部署 
 ### docker

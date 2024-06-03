@@ -11,9 +11,10 @@ import requests
 from flask import Response, jsonify
 from requests.exceptions import ProxyError
 
-from app.config import configure_logging, IMAGE_MODEL_NAMES, HTTPS_PROXY, HTTP_PROXY
+from app.config import configure_logging, IMAGE_MODEL_NAMES, ProxyPool
 
 configure_logging()
+proxy_pool = ProxyPool()
 current_token_index = 0
 
 
@@ -417,12 +418,8 @@ def request_with_proxy_chat(url, headers, data, stream):
 
 def request_with_proxy(url, headers, data, stream, files):
     try:
-        proxies = {}
-        if HTTP_PROXY:
-            proxies['http'] = HTTP_PROXY
-        if HTTPS_PROXY:
-            proxies['https'] = HTTPS_PROXY
-        logging.info("Proxy URL: %s", proxies)
+        proxies = proxy_pool.get_random_proxy()
+        logging.info("Use proxy url %s", proxies)
 
         if proxies:
             response = requests.post(url, headers=headers, json=data, stream=stream, files=files, proxies=proxies)
