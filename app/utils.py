@@ -84,6 +84,9 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
 
     try:
         response = request_with_proxy_chat(url, headers, data, True)
+        if response.headers.get('YJ-X-Content'):
+            raise Exception(f"Popai response  error . Error: {response.headers.get('YJ-X-Content')}")
+
         if response.headers.get('Content-Type') == 'text/event-stream;charset=UTF-8':
             if not user_stream:
                 return stream_2_json(response, model_name, user_model_name)
@@ -177,7 +180,10 @@ def stream_2_json(resp, model_name, user_model_name):
         append_to_chunks(wrapped_chunk)
 
     logging.info("Exiting stream_2_json function")
-    return jsonify(chunks[-1])
+    if chunks:
+        return jsonify(chunks[-1])
+    else:
+        raise Exception("No data available")
 
 
 def process_content(message):
