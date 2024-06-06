@@ -59,7 +59,9 @@ def get_channel_id(hash_value, token, model_name, content, template_id):
 def fetch(req):
     if req.method == "OPTIONS":
         return handle_options_request()
-    token = get_next_auth_token(AUTH_TOKEN)
+
+    # 获取加权轮询后的Token
+    token = get_next_auth_token()
     messages, model_name, prompt, user_stream = get_request_parameters(req.get_json())
     model_to_use = map_model_name(model_name)
     template_id = 2000000 if model_name in IMAGE_MODEL_NAMES else ''

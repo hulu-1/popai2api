@@ -1,6 +1,7 @@
 import os
 import logging
 import random
+from colorlog import ColoredFormatter
 
 IGNORED_MODEL_NAMES = ["gpt-4", "gpt-3.5", "websearch", "dall-e-3", "gpt-4o"]
 IMAGE_MODEL_NAMES = ["dalle3", "dalle-3", "dall-e-3"]
@@ -12,11 +13,35 @@ SOCKS_PROXIES = os.getenv("SOCKS_PROXIES")
 
 
 def configure_logging():
-    extended_log_format = (
-        '%(asctime)s | %(levelname)s | %(name)s | '
-        '%(process)d | %(filename)s:%(lineno)d | %(funcName)s | %(message)s'
+    log_format = (
+        '%(log_color)s%(asctime)s | %(levelname)s | %(name)s | '
+        '%(process)d | %(filename)s:%(lineno)d | %(funcName)s | %(message)s%(reset)s'
     )
-    logging.basicConfig(level=logging.DEBUG, format=extended_log_format)
+    # Create a colored formatter
+    formatter = ColoredFormatter(
+        log_format,
+        datefmt=None,
+        reset=True,
+        log_colors={
+            'DEBUG': 'cyan',
+            'INFO': 'green',
+            'WARNING': 'yellow',
+            'ERROR': 'red',
+            'CRITICAL': 'red,bg_white',
+        }
+    )
+
+    # Create a console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+
+    # Get the root logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+
+    # Avoid adding duplicate handlers
+    if not any(isinstance(handler, logging.StreamHandler) for handler in logger.handlers):
+        logger.addHandler(console_handler)
 
 
 def _get_proxies_from_env(env_var):

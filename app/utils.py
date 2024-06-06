@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import threading
 from collections import deque
 
 import requests
@@ -12,10 +13,12 @@ from flask import Response, jsonify
 from requests.exceptions import ProxyError
 
 from app.config import configure_logging, IMAGE_MODEL_NAMES, ProxyPool
+from app.weight import TOKEN_WEIGHTS, TOKENS_NUM, GCD_WEIGHT, MAX_WEIGHT, CURRENT_INDEX, CURRENT_WEIGHT, TOKENS
 
 configure_logging()
 proxy_pool = ProxyPool()
-current_token_index = 0
+# 线程锁
+LOCK = threading.Lock()
 
 
 def send_http_request(url, headers, data):
@@ -376,15 +379,24 @@ def handle_http_response(resp):
                     yield message
 
 
-def get_next_auth_token(tokens):
-    if not tokens:
-        raise ValueError("No tokens provided.")
-    auth_tokens = tokens.split(',')
-    global current_token_index
-    token = auth_tokens[current_token_index]
-    current_token_index = (current_token_index + 1) % len(auth_tokens)
-    logging.info("Using token: %s", token)
-    return token
+# 根据权重选择下一个 token
+def get_next_auth_token():
+    global CURRENT_INDEX, CURRENT_WEIGHT,LOCK
+
+    if not TOKEN_WEIGHTS:
+        raise ValueError("tokens_weights 为空，请先初始化。")
+
+    while True:
+        with LOCK:
+            CURRENT_INDEX = (CURRENT_INDEX + 1) % TOKENS_NUM
+            if CURRENT_INDEX == 0:
+                CURRENT_WEIGHT -= GCD_WEIGHT
+                if CURRENT_WEIGHT <= 0:
+                    CURRENT_WEIGHT = MAX_WEIGHT
+            if TOKEN_WEIGHTS[CURRENT_INDEX] >= CURRENT_WEIGHT:
+                selected_token = TOKENS[CURRENT_INDEX]
+                logging.info("使用 token: %s \n", selected_token)
+                return selected_token
 
 
 def handle_error(e):
