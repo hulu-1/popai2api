@@ -38,7 +38,10 @@ def configure_logging():
     # Get the root logger
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
-    logger.addHandler(console_handler)
+
+    # Avoid adding duplicate handlers
+    if not any(isinstance(handler, logging.StreamHandler) for handler in logger.handlers):
+        logger.addHandler(console_handler)
 
 
 def _get_proxies_from_env(env_var):
