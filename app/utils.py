@@ -11,7 +11,7 @@ import requests
 from flask import Response, jsonify
 from requests.exceptions import ProxyError
 
-from app.config import configure_logging, IMAGE_MODEL_NAMES, ProxyPool
+from app.config import configure_logging, IMAGE_MODEL_NAMES, ProxyPool, G_TOKEN
 
 configure_logging()
 proxy_pool = ProxyPool()
@@ -48,7 +48,7 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
         "Authorization": auth_token,
         "Content-Type": "application/json",
         "Device-Info": '{"web_id":"drBt-M9G_I9eKAgB8TdnY","baidu_id":"18f1fd3dc7749443876b69"}',
-        "Gtoken": "tgergrehabtdnj",
+        "Gtoken": G_TOKEN,
         "Origin": "https://www.popai.pro",
         "Priority": "u=1, i",
         "Referer": "https://www.popai.pro/",
