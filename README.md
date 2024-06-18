@@ -21,6 +21,12 @@ project-root/
 - [x] 支持多账号轮询（AUTHORIZATION = auth1,auth2,auth3 ）
 - [x] 支持proxy：HTTPS_PROXIES = proxy1,proxy2
 - [x] 新增 “ /v1/images/generations” 路由，兼容OPENAI文生图报文格式
+- [x] 尝试过盾：新增环境变量：RECAPTCHA_SECRET 
+
+## 前置条件
+- popai 账号
+- RECAPTCHA_SECRET： [google网站](https://www.google.com/recaptcha/admin/create)  获取
+        ![img.png](app%2Fdocs%2Fimg.png)
 
 ## 部署 
 ### docker
