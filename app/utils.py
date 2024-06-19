@@ -88,10 +88,10 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            logging.debug("using G_TOKEN: %s",headers["Gtoken"])
+            logging.info("using G_TOKEN: %s",headers["Gtoken"])
             response = request_with_proxy_chat(url, headers, data, True)
             
-            logging.debug("Response headers: %s", response.headers)
+            logging.info("Response headers: %s", response.headers)
             
             # 检查响应头中的错误码
             if response.headers.get('YJ-X-Content'):
@@ -461,25 +461,29 @@ def get_gtoken():
     display = Display(visible=0, size=(1920, 1080), backend="xvfb")
     display.start()
 
-    with open('./recaptcha__zh_cn.js', 'r', encoding='utf-8', errors='ignore') as f:
-        str_js = f.read()
-    
-    options = uc.ChromeOptions()
-    # 你可以添加其他Chrome选项
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    
-    driver = uc.Chrome(options=options)
-    driver.get('https://www.popai.pro/')
-    gtoken = driver.execute_async_script(str_js)
-    
-    with open('gtoken.txt', 'a', encoding='utf-8', errors='ignore') as f:
-        f.write(gtoken)
-        f.write('\n')
-    
-    driver.quit()
-    display.stop()  # 停止Xvfb
+    try:
+        with open('./recaptcha__zh_cn.js', 'r', encoding='utf-8', errors='ignore') as f:
+            str_js = f.read()
+
+        options = uc.ChromeOptions()
+        # 你可以添加其他Chrome选项
+        options.add_argument('--disable-gpu')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+
+        driver = uc.Chrome(options=options)
+        try:
+            driver.get('https://www.popai.pro/')
+            gtoken = driver.execute_async_script(str_js)
+
+            with open('gtoken.txt', 'a', encoding='utf-8', errors='ignore') as f:
+                f.write(gtoken)
+                f.write('\n')
+        finally:
+            driver.quit()  # 确保浏览器实例在异常情况下也能关闭
+    finally:
+        display.stop()  # 确保虚拟显示在异常情况下也能停止
+
     return gtoken
             
 def updateGtoken():
