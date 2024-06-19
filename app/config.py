@@ -8,7 +8,8 @@ load_dotenv()
 IGNORED_MODEL_NAMES = ["gpt-4", "gpt-3.5", "websearch", "dall-e-3", "gpt-4o"]
 IMAGE_MODEL_NAMES = ["dalle3", "dalle-3", "dall-e-3"]
 AUTH_TOKEN = os.getenv("AUTHORIZATION")
-G_TOKEN = os.getenv("G_TOKEN")
+# G_TOKEN = os.getenv("G_TOKEN")
+G_TOKEN = ""
 HISTORY_MSG_LIMIT = os.getenv("HISTORY_MSG_LIMIT", 0)
 HTTP_PROXIES = os.getenv("HTTP_PROXIES")
 HTTPS_PROXIES = os.getenv("HTTPS_PROXIES")
@@ -27,6 +28,8 @@ def _get_proxies_from_env(env_var):
     proxies = os.getenv(env_var, '')
     return [proxy.strip() for proxy in proxies.split(',') if proxy.strip()]
 
+def reloadGtoken():
+    G_TOKEN = os.getenv("G_TOKEN")
 
 class ProxyPool:
     def __init__(self):

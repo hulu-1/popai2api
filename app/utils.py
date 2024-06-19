@@ -12,6 +12,8 @@ from flask import Response, jsonify
 from requests.exceptions import ProxyError
 
 from app.config import configure_logging, IMAGE_MODEL_NAMES, ProxyPool, G_TOKEN
+from pyvirtualdisplay import Display
+import undetected_chromedriver as uc
 
 configure_logging()
 proxy_pool = ProxyPool()
@@ -82,20 +84,37 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
         "docPromptTemplateId": None
     }
 
-    try:
-        response = request_with_proxy_chat(url, headers, data, True)
-        if response.headers.get('YJ-X-Content'):
-            raise Exception(f"Popai response  error . Error: {response.headers.get('YJ-X-Content')}")
-
-        if response.headers.get('Content-Type') == 'text/event-stream;charset=UTF-8':
-            if not user_stream:
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = request_with_proxy_chat(url, headers, data, True)
+            
+            # 检查响应头中的错误码
+            if response.headers.get('YJ-X-Content'):
+                raise Exception(f"Popai response error. Error: {response.headers.get('YJ-X-Content')}")
+            
+            # 如果响应的内容类型是 'text/event-stream;charset=UTF-8'
+            if response.headers.get('Content-Type') == 'text/event-stream;charset=UTF-8':
+                if not user_stream:
+                    return stream_2_json(response, model_name, user_model_name)
+                return stream_response(response, model_name)
+            else:
                 return stream_2_json(response, model_name, user_model_name)
-            return stream_response(response, model_name)
-        else:
-            return stream_2_json(response, model_name, user_model_name)
-    except requests.exceptions.RequestException as e:
-        logging.error("send_chat_message error: %s", e)
-        return handle_error(e)
+        
+        except requests.exceptions.RequestException as e:
+            logging.error("send_chat_message error: %s", e)
+            if attempt == max_retries - 1:
+                return handle_error(e)
+        
+        except Exception as e:
+            logging.error("send_chat_message error: %s", e)
+            if "60001" in str(e):
+                logging.warning(f"Received 60001 error code on attempt {attempt + 1}. Retrying...")
+                if attempt == 1:  # 第二次失败后更新 G_TOKEN
+                    updateGtoken()
+                continue
+            if attempt == max_retries - 1:
+                return handle_error(e)
 
 
 def stream_response(resp, model_name):
@@ -432,3 +451,55 @@ def request_with_proxy(url, headers, data, stream, files):
         logging.error(f"Proxy error occurred: {e}")
         raise Exception("Proxy error occurred")
     return response
+
+def get_gtoken():
+    # 启动Xvfb
+    display = Display(visible=0, size=(1920, 1080), backend="xvfb")
+    display.start()
+
+    with open('./recaptcha__zh_cn.js', 'r', encoding='utf-8', errors='ignore') as f:
+        str_js = f.read()
+    
+    options = uc.ChromeOptions()
+    # 你可以添加其他Chrome选项
+    options.add_argument('--disable-gpu')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    
+    driver = uc.Chrome(options=options)
+    driver.get('https://www.popai.pro/')
+    gtoken = driver.execute_async_script(str_js)
+    
+    with open('gtoken.txt', 'a', encoding='utf-8', errors='ignore') as f:
+        f.write(gtoken)
+        f.write('\n')
+    
+    driver.quit()
+    display.stop()  # 停止Xvfb
+    return gtoken
+
+def update_env_file(gtoken):
+    env_file = '.env'
+    key = 'G_TOKEN'
+    updated = False
+
+    with open(env_file, 'r') as f:
+        lines = f.readlines()
+
+    with open(env_file, 'w') as f:
+        for line in lines:
+            if line.startswith(f'{key}='):
+                f.write(f'{key}={gtoken}\n')
+                updated = True
+            else:
+                f.write(line)
+        
+        if not updated:
+            f.write(f'{key}={gtoken}\n')
+            
+def updateGtoken():
+    G_TOKEN = get_gtoken()
+    update_env_file(G_TOKEN)
+    logging.info("G_TOKEN updated successfully")
+    logging.info("G_TOKEN: %s", G_TOKEN)
+    return G_TOKEN
