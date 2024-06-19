@@ -1,6 +1,9 @@
 import os
 import logging
 import random
+from dotenv import load_dotenv
+
+load_dotenv()
 
 IGNORED_MODEL_NAMES = ["gpt-4", "gpt-3.5", "websearch", "dall-e-3", "gpt-4o"]
 IMAGE_MODEL_NAMES = ["dalle3", "dalle-3", "dall-e-3"]
