@@ -10,7 +10,7 @@ data = {
     "messages": [
         {
             "role": "user",
-            "content": "给我讲讲C++的chromium开发，我想修改网页可以调取的API来达到隐藏个人信息的功能"
+            "content": "收到请回复yessss"
         }
     ],
     "stream": False

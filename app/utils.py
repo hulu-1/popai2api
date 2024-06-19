@@ -36,6 +36,7 @@ def get_env_variable(var_name):
 
 def send_chat_message(req, auth_token, channel_id, final_user_content, model_name, user_stream, image_url,
                       user_model_name):
+    global G_TOKEN
     logging.info("Channel ID: %s", channel_id)
     # logging.info("Final User Content: %s", final_user_content)
     logging.info("Model Name: %s", model_name)
@@ -87,7 +88,10 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
     max_retries = 3
     for attempt in range(max_retries):
         try:
+            logging.debug("using G_TOKEN: %s",headers["Gtoken"])
             response = request_with_proxy_chat(url, headers, data, True)
+            
+            logging.debug("Response headers: %s", response.headers)
             
             # 检查响应头中的错误码
             if response.headers.get('YJ-X-Content'):
@@ -111,7 +115,7 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
             if "60001" in str(e):
                 logging.warning(f"Received 60001 error code on attempt {attempt + 1}. Retrying...")
                 if attempt == 1:  # 第二次失败后更新 G_TOKEN
-                    updateGtoken()
+                    headers["Gtoken"] = updateGtoken() # 更新G_TOKEN后需要更新header
                 continue
             if attempt == max_retries - 1:
                 return handle_error(e)
@@ -477,29 +481,10 @@ def get_gtoken():
     driver.quit()
     display.stop()  # 停止Xvfb
     return gtoken
-
-def update_env_file(gtoken):
-    env_file = '.env'
-    key = 'G_TOKEN'
-    updated = False
-
-    with open(env_file, 'r') as f:
-        lines = f.readlines()
-
-    with open(env_file, 'w') as f:
-        for line in lines:
-            if line.startswith(f'{key}='):
-                f.write(f'{key}={gtoken}\n')
-                updated = True
-            else:
-                f.write(line)
-        
-        if not updated:
-            f.write(f'{key}={gtoken}\n')
             
 def updateGtoken():
+    global G_TOKEN
     G_TOKEN = get_gtoken()
-    update_env_file(G_TOKEN)
     logging.info("G_TOKEN updated successfully")
     logging.info("G_TOKEN: %s", G_TOKEN)
     return G_TOKEN

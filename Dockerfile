@@ -52,4 +52,4 @@ ENV DISPLAY=:99
 EXPOSE 3000
 
 # 启动应用程序
-CMD ["sh", "-c", "Xvfb :99 & python getGtoken.py && python main.py"]
+ENTRYPOINT ["python", "./main.py"]
