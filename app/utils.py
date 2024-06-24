@@ -8,12 +8,12 @@ import re
 from collections import deque
 
 import requests
+import undetected_chromedriver as uc
 from flask import Response, jsonify
+from pyvirtualdisplay import Display
 from requests.exceptions import ProxyError
 
-from app.config import configure_logging, IMAGE_MODEL_NAMES, ProxyPool, G_TOKEN
-from pyvirtualdisplay import Display
-import undetected_chromedriver as uc
+from app.config import configure_logging, IMAGE_MODEL_NAMES, ProxyPool, G_TOKEN, POPAI_BASE_URL
 
 configure_logging()
 proxy_pool = ProxyPool()
@@ -36,7 +36,6 @@ def get_env_variable(var_name):
 
 def send_chat_message(req, auth_token, channel_id, final_user_content, model_name, user_stream, image_url,
                       user_model_name):
-    global G_TOKEN
     logging.info("Channel ID: %s", channel_id)
     # logging.info("Final User Content: %s", final_user_content)
     logging.info("Model Name: %s", model_name)
@@ -61,7 +60,9 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "same-site",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/124.0.0.0 Safari/537.36",
+        "Cache-Control": "no-cache"
     }
 
     data = {
@@ -88,15 +89,15 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            logging.info("using G_TOKEN: %s",headers["Gtoken"])
+            logging.info("Using G_TOKEN: %s", headers["Gtoken"])
             response = request_with_proxy_chat(url, headers, data, True)
-            
-            logging.info("Response headers: %s", response.headers)
-            
+
+            # logging.info("Response headers: %s", response.headers)
+
             # 检查响应头中的错误码
             if response.headers.get('YJ-X-Content'):
                 raise Exception(f"Popai response error. Error: {response.headers.get('YJ-X-Content')}")
-            
+
             # 如果响应的内容类型是 'text/event-stream;charset=UTF-8'
             if response.headers.get('Content-Type') == 'text/event-stream;charset=UTF-8':
                 if not user_stream:
@@ -104,21 +105,26 @@ def send_chat_message(req, auth_token, channel_id, final_user_content, model_nam
                 return stream_response(response, model_name)
             else:
                 return stream_2_json(response, model_name, user_model_name)
-        
+
         except requests.exceptions.RequestException as e:
             logging.error("send_chat_message error: %s", e)
             if attempt == max_retries - 1:
                 return handle_error(e)
-        
+
         except Exception as e:
             logging.error("send_chat_message error: %s", e)
-            if "60001" in str(e):
-                logging.warning(f"Received 60001 error code on attempt {attempt + 1}. Retrying...")
-                if attempt == 1:  # 第二次失败后更新 G_TOKEN
-                    headers["Gtoken"] = updateGtoken() # 更新G_TOKEN后需要更新header
-                continue
-            if attempt == max_retries - 1:
+            try:
+                if "60001" in str(e):
+                    logging.warning(f"Received 60001 error code on attempt {attempt + 1}. Retrying...")
+                    if attempt == 1:  # 第二次失败后更新 G_TOKEN
+                        headers["Gtoken"] = updateGtoken()  # 更新G_TOKEN后需要更新header
+                    continue
+                if attempt == max_retries - 1:
+                    return handle_error(e)
+            except Exception as e:
+                logging.error("Update_gtoken error: %s", e)
                 return handle_error(e)
+    return Exception(f"All attempts to send chat message failed.")
 
 
 def stream_response(resp, model_name):
@@ -456,9 +462,41 @@ def request_with_proxy(url, headers, data, stream, files):
         raise Exception("Proxy error occurred")
     return response
 
+
+# def get_gtoken_back():
+#     gtoken = None
+#     try:
+#         with open('./recaptcha__zh_cn.js', 'r', encoding='utf-8', errors='ignore') as f:
+#             str_js = f.read()
+#
+#         options = uc.ChromeOptions()
+#         # 无头模式
+#         # options.add_argument('--headless')
+#         options.add_argument('--disable-gpu')
+#         options.add_argument('--no-sandbox')
+#         options.add_argument('--disable-dev-shm-usage')
+#
+#         driver = uc.Chrome(options=options)
+#         try:
+#             driver.get(POPAI_BASE_URL)
+#             # 设置最长等待时间s
+#             WebDriverWait(driver, 20).until(lambda d: d.execute_async_script(str_js))
+#             gtoken = driver.execute_async_script(str_js)
+#
+#             with open('gtoken.txt', 'a', encoding='utf-8', errors='ignore') as f:
+#                 f.write(gtoken)
+#                 f.write('\n')
+#         finally:
+#             driver.quit()  # 确保浏览器实例在异常情况下也能关闭
+#     except Exception as e:
+#         logging.error(f"An error occurred: {e}")
+#
+#     return gtoken
+
+
 def get_gtoken():
     # 启动Xvfb
-    display = Display(visible=0, size=(1920, 1080), backend="xvfb")
+    display = Display(visible=0, size=(1280, 720), backend="xvfb")
     display.start()
 
     try:
@@ -473,7 +511,7 @@ def get_gtoken():
 
         driver = uc.Chrome(options=options)
         try:
-            driver.get('https://www.popai.pro/')
+            driver.get(POPAI_BASE_URL)
             gtoken = driver.execute_async_script(str_js)
 
             with open('gtoken.txt', 'a', encoding='utf-8', errors='ignore') as f:
@@ -481,14 +519,17 @@ def get_gtoken():
                 f.write('\n')
         finally:
             driver.quit()  # 确保浏览器实例在异常情况下也能关闭
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
     finally:
-        display.stop()  # 确保虚拟显示在异常情况下也能停止
+        display.stop()
 
     return gtoken
-            
+
+
 def updateGtoken():
     global G_TOKEN
     G_TOKEN = get_gtoken()
     logging.info("G_TOKEN updated successfully")
-    logging.info("G_TOKEN: %s", G_TOKEN)
+    # logging.info("G_TOKEN: %s", G_TOKEN)
     return G_TOKEN

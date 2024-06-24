@@ -9,11 +9,14 @@ IGNORED_MODEL_NAMES = ["gpt-4", "gpt-3.5", "websearch", "dall-e-3", "gpt-4o"]
 IMAGE_MODEL_NAMES = ["dalle3", "dalle-3", "dall-e-3"]
 AUTH_TOKEN = os.getenv("AUTHORIZATION")
 # G_TOKEN = os.getenv("G_TOKEN")
-G_TOKEN = ""
+G_TOKEN = None
 HISTORY_MSG_LIMIT = os.getenv("HISTORY_MSG_LIMIT", 0)
 HTTP_PROXIES = os.getenv("HTTP_PROXIES")
 HTTPS_PROXIES = os.getenv("HTTPS_PROXIES")
 SOCKS_PROXIES = os.getenv("SOCKS_PROXIES")
+RECAPTCHA_SECRET = os.getenv("RECAPTCHA_SECRET")
+POPAI_BASE_URL = "https://www.popai.pro/"
+log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
 
 
 def configure_logging():
@@ -21,15 +24,13 @@ def configure_logging():
         '%(asctime)s | %(levelname)s | %(name)s | '
         '%(process)d | %(filename)s:%(lineno)d | %(funcName)s | %(message)s'
     )
-    logging.basicConfig(level=logging.DEBUG, format=extended_log_format)
+    logging.basicConfig(level=log_level, format=extended_log_format)
 
 
 def _get_proxies_from_env(env_var):
     proxies = os.getenv(env_var, '')
     return [proxy.strip() for proxy in proxies.split(',') if proxy.strip()]
 
-def reloadGtoken():
-    G_TOKEN = os.getenv("G_TOKEN")
 
 class ProxyPool:
     def __init__(self):

@@ -15,9 +15,8 @@ RUN apt-get update && apt-get install -y \
     libxss1 \
     libappindicator1 \
     gnupg \
-    --no-install-recommends
-
-RUN rm -rf /var/lib/apt/lists/*
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
 # 添加Google的签名密钥
 RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
@@ -26,18 +25,14 @@ RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add
 RUN sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
 
 # 更新软件包列表并安装Google Chrome
-RUN apt-get update && apt-get install -y google-chrome-stable
-    
-# 清理APT缓存
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y google-chrome-stable \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 下载并安装 ChromeDriver
-RUN  wget -q "https://storage.googleapis.com/chrome-for-testing-public/126.0.6478.62/linux64/chromedriver-linux64.zip" \
-    && unzip chromedriver-linux64.zip \
-    && cd chromedriver-linux64/ \
-    && mv chromedriver /usr/local/bin/ \
-    && cd .. \
-    && rm chromedriver-linux64.zip
+RUN wget -O chromedriver.zip "https://storage.googleapis.com/chrome-for-testing-public/126.0.6478.62/linux64/chromedriver-linux64.zip" \
+    && unzip chromedriver.zip -d /usr/local/bin/ \
+    && mv /usr/local/bin/chromedriver-linux64/chromedriver /usr/local/bin/ \
+    && rm -rf /usr/local/bin/chromedriver-linux64 chromedriver.zip
 
 # 复制应用程序代码到工作目录
 COPY . .
